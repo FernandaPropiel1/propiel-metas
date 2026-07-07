@@ -1,5 +1,6 @@
 import { useState, useEffect, useCallback, useRef } from "react";
 
+// ─── SUPABASE ─────────────────────────────────────────────────────────────────
 const SB_URL = "https://bhuicxxirvgjtuvpmalq.supabase.co";
 const SB_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImJodWljeHhpcnZnanR1dnBtYWxxIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODMzNTY3MzEsImV4cCI6MjA5ODkzMjczMX0.p_Pz1ujsKxJQ0DIPrPVWrZf5m1Ia01u9rEi0wM-r5dc";
 const HG = { "apikey": SB_KEY, "Authorization": `Bearer ${SB_KEY}` };
@@ -10,6 +11,7 @@ const SB = {
     try { const r = await fetch(`${SB_URL}/rest/v1/propiel_goals?limit=1&select=branch_id`, {headers:HG}); return r.ok; }
     catch { return false; }
   },
+  // Transactions
   async getTxns(bid, y, m) {
     try {
       const r = await fetch(`${SB_URL}/rest/v1/propiel_transactions?branch_id=eq.${bid}&year=eq.${y}&month=eq.${m}&select=id,day,amount&order=created_at.asc`, {headers:HG});
@@ -30,6 +32,7 @@ const SB = {
     try { const r = await fetch(`${SB_URL}/rest/v1/propiel_transactions?id=eq.${encodeURIComponent(id)}`, {method:"DELETE",headers:HG}); return r.ok; }
     catch { return false; }
   },
+  // Goals
   async getAllGoals(y, m) {
     try {
       const r = await fetch(`${SB_URL}/rest/v1/propiel_goals?year=eq.${y}&month=eq.${m}&select=branch_id,goal,offset_amount`, {headers:HG});
@@ -40,6 +43,7 @@ const SB = {
     try { const r = await fetch(`${SB_URL}/rest/v1/propiel_goals`, {method:"POST",headers:HP,body:JSON.stringify({branch_id:bid,year:y,month:m,goal,offset_amount:offset})}); return r.ok; }
     catch { return false; }
   },
+  // Year-level for historial
   async getYearData(y) {
     try {
       const [tr, gr] = await Promise.all([
@@ -51,6 +55,7 @@ const SB = {
   },
 };
 
+// ─── OFFLINE QUEUE ────────────────────────────────────────────────────────────
 let _q = [];
 let _ql = new Set();
 let _qs = false;
@@ -80,6 +85,7 @@ function useQCount() {
   return c;
 }
 
+// ─── CONSTANTES ───────────────────────────────────────────────────────────────
 const BRANCHES = [
   {id:"fresno",      name:"Fresno",          city:"Torreón",   color:"#10B981"},
   {id:"santabarbara",name:"505 Sta. Bárbara", city:"Torreón",   color:"#8B5CF6"},
@@ -96,6 +102,7 @@ const DIEF  = ["Domingo","Lunes","Martes","Miércoles","Jueves","Viernes","Sába
 const PIN   = "propiel2026";
 const QUICK = [200,500,800,1000,1500,2000];
 
+// ─── UTILS ───────────────────────────────────────────────────────────────────
 const now     = () => { const d=new Date(); return {y:d.getFullYear(),m:d.getMonth(),day:d.getDate(),dow:d.getDay()}; };
 const daysInM = (y,m) => new Date(y,m+1,0).getDate();
 const fmt$    = n => `$${Math.round(n).toLocaleString("es-MX")}`;
@@ -109,6 +116,7 @@ function workDaysLeft(y,m,from) {
   return Math.max(1,n);
 }
 
+// txns = array of {id, day, amount}
 function computeStats(txns=[], goal=0, dayNum, y, m, offset=0) {
   if (!goal) return {goal:0,todayTotal:0,accumulated:0,dailyGoal:0,pctMonth:0,pctDay:0,todayTxns:[],monthTotal:0,isSunday:false};
   const sunday=isSun(y,m,dayNum);
@@ -133,6 +141,7 @@ function statusFor(p) {
 }
 const arcColor = p => p>=100?"#10B981":p>=75?"#22C55E":p>=45?"#F59E0B":"#EF4444";
 
+// ─── RING ─────────────────────────────────────────────────────────────────────
 function Ring({pct,size=220,sw=18,color,children}) {
   const r=(size-sw)/2,circ=2*Math.PI*r,dash=circ*Math.min(pct,100)/100;
   return (
@@ -150,13 +159,16 @@ function Ring({pct,size=220,sw=18,color,children}) {
   );
 }
 
+// ─── LANDING ──────────────────────────────────────────────────────────────────
 function Landing({onSelect,onManager}) {
   const t=now();
   const [conn,setConn]=useState(null);
   const qc=useQCount();
   useEffect(()=>{SB.ping().then(setConn);},[]);
+
   const connColor=conn===null?"#555":conn?"#10B981":"#EF4444";
   const connText=conn===null?"Conectando...":conn?"Base de datos OK":"⚠️ Sin conexión — modo offline";
+
   return (
     <div style={{minHeight:"100vh",background:"#080808",display:"flex",flexDirection:"column",alignItems:"center",justifyContent:"center",padding:"28px 20px",fontFamily:"'Inter',system-ui,sans-serif"}}>
       <style>{`@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap');.bc{transition:all .18s}.bc:hover{transform:translateY(-2px)}`}</style>
@@ -197,6 +209,7 @@ function Landing({onSelect,onManager}) {
   );
 }
 
+// ─── BRANCH VIEW ──────────────────────────────────────────────────────────────
 function BranchView({branch,onBack}) {
   const t=now();
   const [txns,setTxns]=useState([]);
@@ -211,7 +224,10 @@ function BranchView({branch,onBack}) {
   const qc=useQCount();
 
   const load=useCallback(async()=>{
-    const [txnData,goals]=await Promise.all([SB.getTxns(branch.id,t.y,t.m),SB.getAllGoals(t.y,t.m)]);
+    const [txnData,goals]=await Promise.all([
+      SB.getTxns(branch.id,t.y,t.m),
+      SB.getAllGoals(t.y,t.m),
+    ]);
     const ok=txnData!==null;
     setOnline(ok);
     if (ok) setTxns(txnData);
@@ -223,7 +239,7 @@ function BranchView({branch,onBack}) {
 
   useEffect(()=>{
     load();
-    const iv=setInterval(load,60000);
+    const iv=setInterval(load,60000); // refresh every 60s
     return ()=>clearInterval(iv);
   },[load]);
 
@@ -237,10 +253,13 @@ function BranchView({branch,onBack}) {
     if (!val||val<=0) return;
     const wasHit=pctDay>=100;
     const txn={id:genId(),branch_id:branch.id,year:t.y,month:t.m,day:t.day,amount:val};
+    // Optimistic update
     setTxns(prev=>[...prev,{...txn}]);
     setInput(""); setFlash(true); setTimeout(()=>setFlash(false),500);
+    // Try Supabase
     const ok=await SB.insertTxn(txn);
     if (!ok) { qAdd("insert",txn); setOnline(false); } else setOnline(true);
+    // Celebration
     const newPct=dailyGoal>0?((todayTotal+val)/dailyGoal)*100:100;
     if (!wasHit&&newPct>=100){setParty(true);setTimeout(()=>setParty(false),3500);}
     inputRef.current?.focus();
@@ -273,6 +292,7 @@ function BranchView({branch,onBack}) {
   return (
     <div style={{minHeight:"100vh",background:"#080808",fontFamily:"'Inter',system-ui,sans-serif"}}>
       <style>{CSS}</style>
+
       {party&&(
         <div style={{position:"fixed",inset:0,zIndex:200,display:"flex",flexDirection:"column",alignItems:"center",justifyContent:"center",background:"rgba(0,0,0,.92)"}}>
           <div style={{fontSize:90,animation:"pp .6s ease infinite"}}>🏆</div>
@@ -281,6 +301,8 @@ function BranchView({branch,onBack}) {
           <button onClick={()=>setParty(false)} style={{marginTop:32,background:"none",border:"1px solid #333",borderRadius:10,color:"#555",padding:"10px 24px",cursor:"pointer",fontSize:13}}>Continuar</button>
         </div>
       )}
+
+      {/* Header */}
       <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",padding:"18px 20px 0"}}>
         <button onClick={onBack} style={{background:"none",border:"none",color:"#444",cursor:"pointer",fontSize:13,padding:0}}>← Inicio</button>
         <div style={{display:"flex",alignItems:"center",gap:8}}>
@@ -293,6 +315,7 @@ function BranchView({branch,onBack}) {
         </div>
       </div>
       <div style={{textAlign:"center",color:"#3a3a3a",fontSize:12,marginTop:10}}>{dateStr}</div>
+
       {!goal ? (
         <div style={{display:"flex",flexDirection:"column",alignItems:"center",padding:"60px 20px"}}>
           <div style={{fontSize:48}}>🎯</div>
@@ -327,7 +350,9 @@ function BranchView({branch,onBack}) {
               <div style={{fontSize:12,color:arc,fontWeight:700,marginTop:4}}>{Math.round(Math.min(pctDay,999))}%</div>
             </Ring>
           </div>
+
           <div style={{color:arc,fontSize:15,fontWeight:600,marginBottom:28,textAlign:"center"}}>{stat.msg}</div>
+
           <div style={{width:"100%",maxWidth:400,marginBottom:32,background:"#111",borderRadius:16,padding:"16px 18px"}}>
             <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:10}}>
               <div style={{color:"#555",fontSize:11,letterSpacing:1,textTransform:"uppercase"}}>Meta del mes</div>
@@ -341,6 +366,7 @@ function BranchView({branch,onBack}) {
               <span style={{color:"#333",fontSize:11}}>Faltan {fmt$(Math.max(0,goal-monthTotal))}</span>
             </div>
           </div>
+
           <div style={{width:"100%",maxWidth:400}}>
             <div style={{color:"#333",fontSize:10,letterSpacing:2,textTransform:"uppercase",marginBottom:10}}>Agregar venta</div>
             <div style={{display:"flex",flexWrap:"wrap",gap:8,marginBottom:12}}>
@@ -384,13 +410,22 @@ function BranchView({branch,onBack}) {
   );
 }
 
+// ─── TAB HOY ──────────────────────────────────────────────────────────────────
 function TabHoy({stats,txnsByBranch,y,m,day,onRefresh}) {
   const [editId,setEditId]=useState(null);
   const [editDay,setEditDay]=useState(day);
   const [addInput,setAddInput]=useState("");
   const [busy,setBusy]=useState(false);
+
   const toggleEdit=id=>{ if(editId===id)setEditId(null); else{setEditId(id);setEditDay(day);setAddInput("");} };
-  const deleteTxn=async(txnId)=>{ setBusy(true); const ok=await SB.deleteTxn(txnId); if(!ok) qAdd("delete",{id:txnId}); setBusy(false); onRefresh(); };
+
+  const deleteTxn=async(txnId)=>{
+    setBusy(true);
+    const ok=await SB.deleteTxn(txnId);
+    if (!ok) qAdd("delete",{id:txnId});
+    setBusy(false); onRefresh();
+  };
+
   const addTxn=async(bid)=>{
     const val=parseFloat(addInput.replace(/,/g,"").replace(/\$/g,""));
     if (!val||val<=0) return;
@@ -400,6 +435,7 @@ function TabHoy({stats,txnsByBranch,y,m,day,onRefresh}) {
     if (!ok) qAdd("insert",txn);
     setAddInput(""); setBusy(false); onRefresh();
   };
+
   return (
     <div>
       <div style={{color:"#aaa",fontSize:12,marginBottom:18}}>{DIEF[new Date(y,m,day).getDay()]}, {day} de {MES[m]}</div>
@@ -419,7 +455,7 @@ function TabHoy({stats,txnsByBranch,y,m,day,onRefresh}) {
                   <div style={{display:"flex",alignItems:"center",gap:8}}>
                     <span style={{fontSize:11,color:"#ccc"}}>{b.city}</span>
                     <button onClick={()=>toggleEdit(b.id)}
-                      style={{background:isEd?"#111":"#f0f0f0",border:"none",borderRadius:7,padding:"5px 10px",cursor:"pointer",fontSize:11,color:isEd?"#fff":"#666",fontWeight:isEd?700:400}}>
+                      style={{background:isEd?"#111":"#f0f0f0",border:"none",borderRadius:7,padding:"5px 10px",cursor:"pointer",fontSize:11,color:isEd?"#fff":"#666",fontWeight:isEd?700:400,transition:"all .15s"}}>
                       {isEd?"Cerrar":"✏️ Editar"}
                     </button>
                   </div>
@@ -427,11 +463,11 @@ function TabHoy({stats,txnsByBranch,y,m,day,onRefresh}) {
                 {s.goal?(
                   <>
                     <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-end",marginBottom:8}}>
-                      <div style={{fontSize:24,fontWeight:800,color:"#111"}}>{fmt$(s.todayTotal)}</div>
+                      <div style={{fontSize:24,fontWeight:800,color:"#111",letterSpacing:-.5}}>{fmt$(s.todayTotal)}</div>
                       <div style={{fontSize:12,color:"#999"}}>/ {fmt$(s.dailyGoal)} hoy</div>
                     </div>
                     <div style={{background:"#ebebeb",borderRadius:6,height:7,overflow:"hidden"}}>
-                      <div style={{height:"100%",width:`${Math.min(100,s.pctDay)}%`,background:arcColor(s.pctDay),borderRadius:6}}/>
+                      <div style={{height:"100%",width:`${Math.min(100,s.pctDay)}%`,background:arcColor(s.pctDay),borderRadius:6,transition:"width .4s"}}/>
                     </div>
                     <div style={{display:"flex",justifyContent:"space-between",marginTop:6}}>
                       <div style={{fontSize:11,color:"#aaa"}}>{Math.round(s.pctDay)}% de hoy</div>
@@ -440,28 +476,43 @@ function TabHoy({stats,txnsByBranch,y,m,day,onRefresh}) {
                   </>
                 ):<div style={{color:"#ccc",fontSize:13}}>Sin meta este mes</div>}
               </div>
+
               {isEd&&(
                 <div style={{borderTop:"1px solid #eee",background:"#fff",padding:"14px 16px"}}>
                   <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:12}}>
-                    <button onClick={()=>setEditDay(d=>Math.max(1,d-1))} style={{background:"#f0f0f0",border:"none",borderRadius:7,padding:"6px 12px",cursor:"pointer",fontSize:14,color:"#555"}}>‹</button>
-                    <div style={{fontSize:13,fontWeight:600,color:"#333"}}>{DIEF[new Date(y,m,editDay).getDay()]} {editDay}{editDay===day&&<span style={{color:"#aaa",fontWeight:400,fontSize:11}}> · hoy</span>}</div>
-                    <button onClick={()=>setEditDay(d=>Math.min(day,d+1))} disabled={editDay>=day} style={{background:editDay>=day?"#f8f8f8":"#f0f0f0",border:"none",borderRadius:7,padding:"6px 12px",cursor:editDay>=day?"default":"pointer",fontSize:14,color:editDay>=day?"#ddd":"#555"}}>›</button>
+                    <button onClick={()=>setEditDay(d=>Math.max(1,d-1))}
+                      style={{background:"#f0f0f0",border:"none",borderRadius:7,padding:"6px 12px",cursor:"pointer",fontSize:14,color:"#555"}}>‹</button>
+                    <div style={{fontSize:13,fontWeight:600,color:"#333",textAlign:"center"}}>
+                      {DIEF[new Date(y,m,editDay).getDay()]} {editDay}
+                      {editDay===day&&<span style={{color:"#aaa",fontWeight:400,fontSize:11}}> · hoy</span>}
+                    </div>
+                    <button onClick={()=>setEditDay(d=>Math.min(day,d+1))} disabled={editDay>=day}
+                      style={{background:editDay>=day?"#f8f8f8":"#f0f0f0",border:"none",borderRadius:7,padding:"6px 12px",cursor:editDay>=day?"default":"pointer",fontSize:14,color:editDay>=day?"#ddd":"#555"}}>›</button>
                   </div>
-                  {edTxns.length===0?<div style={{color:"#ccc",fontSize:13,textAlign:"center",padding:"10px 0",marginBottom:12}}>Sin ventas este día</div>:(
+                  {edTxns.length===0?(
+                    <div style={{color:"#ccc",fontSize:13,textAlign:"center",padding:"10px 0",marginBottom:12}}>Sin ventas este día</div>
+                  ):(
                     <div style={{background:"#fafafa",borderRadius:10,overflow:"hidden",border:"1px solid #f0f0f0",marginBottom:12}}>
                       {edTxns.map((v,i)=>(
                         <div key={v.id} style={{display:"flex",justifyContent:"space-between",alignItems:"center",padding:"10px 12px",borderBottom:i<edTxns.length-1?"1px solid #f0f0f0":"none"}}>
                           <span style={{fontSize:12,color:"#aaa"}}>#{i+1}</span>
                           <span style={{fontSize:14,fontWeight:700,color:"#333"}}>{fmt$(amt(v.amount))}</span>
-                          <button onClick={()=>!busy&&deleteTxn(v.id)} style={{background:"#FEE2E2",border:"none",borderRadius:6,padding:"4px 10px",cursor:"pointer",color:"#EF4444",fontSize:12,fontWeight:600,opacity:busy?.5:1}}>✕</button>
+                          <button onClick={()=>!busy&&deleteTxn(v.id)}
+                            style={{background:"#FEE2E2",border:"none",borderRadius:6,padding:"4px 10px",cursor:"pointer",color:"#EF4444",fontSize:12,fontWeight:600,opacity:busy?.5:1}}>✕</button>
                         </div>
                       ))}
                     </div>
                   )}
                   <div style={{display:"flex",gap:8}}>
-                    <input type="number" value={addInput} onChange={e=>setAddInput(e.target.value)} onKeyDown={e=>e.key==="Enter"&&addTxn(b.id)} placeholder="Agregar corrección..."
-                      style={{flex:1,background:"#f5f5f5",border:"1px solid #e5e5e5",borderRadius:9,padding:"9px 12px",fontSize:14,color:"#111",outline:"none"}}/>
-                    <button onClick={()=>addTxn(b.id)} style={{background:b.color,border:"none",borderRadius:9,color:"#000",fontWeight:800,fontSize:13,padding:"0 16px",cursor:"pointer",opacity:busy?.6:1}}>+ Add</button>
+                    <input type="number" value={addInput} onChange={e=>setAddInput(e.target.value)}
+                      onKeyDown={e=>e.key==="Enter"&&addTxn(b.id)}
+                      placeholder="Agregar corrección..."
+                      style={{flex:1,background:"#f5f5f5",border:"1px solid #e5e5e5",borderRadius:9,padding:"9px 12px",fontSize:14,color:"#111",outline:"none"}}
+                    />
+                    <button onClick={()=>addTxn(b.id)}
+                      style={{background:b.color,border:"none",borderRadius:9,color:"#000",fontWeight:800,fontSize:13,padding:"0 16px",cursor:"pointer",opacity:busy?.6:1}}>
+                      + Add
+                    </button>
                   </div>
                   {busy&&<div style={{color:"#aaa",fontSize:11,textAlign:"center",marginTop:8}}>Guardando...</div>}
                 </div>
@@ -474,10 +525,33 @@ function TabHoy({stats,txnsByBranch,y,m,day,onRefresh}) {
   );
 }
 
+// ─── TAB MES ──────────────────────────────────────────────────────────────────
 function TabMes({stats,y,m}) {
+  const totalGoal = BRANCHES.reduce((s,b)=>s+(stats[b.id]?.goal||0),0);
+  const totalSold = BRANCHES.reduce((s,b)=>s+(stats[b.id]?.monthTotal||0),0);
+  const totalPct  = totalGoal>0?Math.min(100,(totalSold/totalGoal)*100):0;
   return (
     <div>
-      <div style={{color:"#aaa",fontSize:12,marginBottom:18}}>{MES[m]} {y}</div>
+      <div style={{color:"#aaa",fontSize:12,marginBottom:14}}>{MES[m]} {y}</div>
+      {/* Consolidado */}
+      {totalGoal>0&&(
+        <div style={{background:"#111",borderRadius:14,padding:"16px 18px",marginBottom:20}}>
+          <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:10}}>
+            <div style={{display:"flex",alignItems:"center",gap:8}}>
+              <div style={{fontSize:13,fontWeight:700,color:"#fff"}}>Consolidado total</div>
+            </div>
+            <div style={{fontSize:13,fontWeight:700,color:totalPct>=100?"#10B981":"#888"}}>{Math.round(totalPct)}%</div>
+          </div>
+          <div style={{display:"flex",justifyContent:"space-between",marginBottom:10}}>
+            <span style={{fontSize:22,fontWeight:900,color:"#fff",letterSpacing:-.5}}>{fmt$(totalSold)}</span>
+            <span style={{fontSize:13,color:"#555",alignSelf:"flex-end"}}>/ {fmt$(totalGoal)}</span>
+          </div>
+          <div style={{background:"#2a2a2a",borderRadius:8,height:10,overflow:"hidden",marginBottom:6}}>
+            <div style={{height:"100%",width:`${totalPct}%`,background:totalPct>=100?"#10B981":"#22C55E",borderRadius:8,transition:"width .5s"}}/>
+          </div>
+          <div style={{fontSize:11,color:"#555"}}>Faltan {fmt$(Math.max(0,totalGoal-totalSold))} para meta total del mes</div>
+        </div>
+      )}
       <div style={{display:"grid",gap:10}}>
         {BRANCHES.map(b=>{
           const s=stats[b.id]||{};
@@ -493,7 +567,7 @@ function TabMes({stats,y,m}) {
               {s.goal?(
                 <>
                   <div style={{display:"flex",justifyContent:"space-between",marginBottom:8}}>
-                    <span style={{fontSize:20,fontWeight:800,color:"#111"}}>{fmt$(s.monthTotal)}</span>
+                    <span style={{fontSize:20,fontWeight:800,color:"#111",letterSpacing:-.3}}>{fmt$(s.monthTotal)}</span>
                     <span style={{fontSize:13,color:"#bbb",alignSelf:"flex-end"}}>/ {fmt$(s.goal)}</span>
                   </div>
                   <div style={{background:"#ebebeb",borderRadius:8,height:9,overflow:"hidden"}}>
@@ -510,10 +584,16 @@ function TabMes({stats,y,m}) {
   );
 }
 
+// ─── TAB SEMANA ───────────────────────────────────────────────────────────────
 function TabSemana({txnsByBranch,stats,y,m}) {
   const t=now();
   const [offset,setOffset]=useState(0);
-  const monday=(()=>{ const d=new Date(t.y,t.m,t.day); const dow=(d.getDay()+6)%7; d.setDate(d.getDate()-dow+offset*7); return d; })();
+  const monday=(()=>{
+    const d=new Date(t.y,t.m,t.day);
+    const dow=(d.getDay()+6)%7;
+    d.setDate(d.getDate()-dow+offset*7);
+    return d;
+  })();
   const week=Array.from({length:6},(_,i)=>{const d=new Date(monday);d.setDate(d.getDate()+i);return d;});
   const isToday=d=>d.getDate()===t.day&&d.getMonth()===t.m&&d.getFullYear()===t.y;
   const isFuture=d=>d>new Date(t.y,t.m,t.day);
@@ -527,7 +607,10 @@ function TabSemana({txnsByBranch,stats,y,m}) {
       <div style={{display:"grid",gap:10}}>
         {BRANCHES.map(b=>{
           const btxns=txnsByBranch[b.id]||[], dg=stats[b.id]?.dailyGoal||0;
-          const sums=week.map(d=>{ if(d.getFullYear()!==y||d.getMonth()!==m) return 0; return btxns.filter(t=>t.day===d.getDate()).reduce((s,t)=>s+amt(t.amount),0); });
+          const sums=week.map(d=>{
+            if(d.getFullYear()!==y||d.getMonth()!==m) return 0;
+            return btxns.filter(t=>t.day===d.getDate()).reduce((s,t)=>s+amt(t.amount),0);
+          });
           const maxVal=Math.max(...sums,dg,1);
           return (
             <div key={b.id} style={{background:"#fafafa",borderRadius:14,padding:"14px 16px",border:"1px solid #f0f0f0"}}>
@@ -543,7 +626,7 @@ function TabSemana({txnsByBranch,stats,y,m}) {
                   return (
                     <div key={i} style={{flex:1,display:"flex",flexDirection:"column",alignItems:"center",gap:5}}>
                       <div style={{fontSize:10,color:v>0&&!fut?"#888":"#ccc",fontWeight:600}}>{v>0&&!fut?`$${Math.round(v/1000)}k`:""}</div>
-                      <div style={{width:"100%",borderRadius:"4px 4px 2px 2px",height:barH,background:col,alignSelf:"flex-end"}}/>
+                      <div style={{width:"100%",borderRadius:"4px 4px 2px 2px",height:barH,background:col,alignSelf:"flex-end",transition:"height .3s"}}/>
                       <div style={{fontSize:10,color:tod?b.color:"#ccc",fontWeight:tod?700:400}}>{DIES[d.getDay()]}</div>
                     </div>
                   );
@@ -557,6 +640,7 @@ function TabSemana({txnsByBranch,stats,y,m}) {
   );
 }
 
+// ─── TAB HISTORIAL ────────────────────────────────────────────────────────────
 function TabHistorial({y}) {
   const [data,setData]=useState(null);
   const [loading,setLoading]=useState(true);
@@ -603,8 +687,8 @@ function TabHistorial({y}) {
                   return (
                     <td key={mi} style={{textAlign:"center",padding:"10px 4px"}}>
                       {d===null||d===undefined?<span style={{color:"#ddd"}}>—</span>
-                        :d.hit?<span style={{color:"#10B981",fontWeight:700}}>✓</span>
-                        :<span style={{color:"#EF4444"}}>✗</span>}
+                        :d.hit?<span title={`${fmt$(d.total)}/${fmt$(d.goal)}`} style={{color:"#10B981",fontWeight:700}}>✓</span>
+                        :<span title={`${fmt$(d.total)}/${fmt$(d.goal)}`} style={{color:"#EF4444"}}>✗</span>}
                     </td>
                   );
                 })}
@@ -613,7 +697,33 @@ function TabHistorial({y}) {
           </tbody>
         </table>
       </div>
-      <div style={{display:"flex",gap:20,marginTop:18,fontSize:12,color:"#aaa"}}>
+      {/* Fila consolidado */}
+      <div style={{marginTop:16,background:"#f8f8f8",borderRadius:10,overflow:"hidden",border:"1px solid #eee"}}>
+        <table style={{width:"100%",borderCollapse:"collapse",fontSize:12,minWidth:480}}>
+          <tbody>
+            <tr style={{borderTop:"2px solid #e5e5e5"}}>
+              <td style={{padding:"10px 8px"}}>
+                <span style={{color:"#111",fontWeight:700,fontSize:12}}>Total general</span>
+              </td>
+              {Array.from({length:12},(_,mi)=>{
+                const monthGoal=BRANCHES.reduce((s,b)=>s+amt(data?.[b.id]?.[mi]?.goal||0),0);
+                const monthTotal=BRANCHES.reduce((s,b)=>s+amt(data?.[b.id]?.[mi]?.total||0),0);
+                const hasData=BRANCHES.some(b=>data?.[b.id]?.[mi]!==null&&data?.[b.id]?.[mi]!==undefined);
+                return (
+                  <td key={mi} style={{textAlign:"center",padding:"10px 4px"}}>
+                    {!hasData
+                      ?<span style={{color:"#ddd"}}>—</span>
+                      :monthTotal>=monthGoal
+                        ?<span title={`${fmt$(monthTotal)}/${fmt$(monthGoal)}`} style={{color:"#10B981",fontWeight:800,fontSize:15}}>✓</span>
+                        :<span title={`${fmt$(monthTotal)}/${fmt$(monthGoal)}`} style={{color:"#EF4444",fontSize:15}}>✗</span>}
+                  </td>
+                );
+              })}
+            </tr>
+          </tbody>
+        </table>
+      </div>
+      <div style={{display:"flex",gap:20,marginTop:14,fontSize:12,color:"#aaa"}}>
         <span><span style={{color:"#10B981",fontWeight:700}}>✓</span> Lograda</span>
         <span><span style={{color:"#EF4444"}}>✗</span> No lograda</span>
         <span><span style={{color:"#ddd"}}>—</span> Sin meta</span>
@@ -622,6 +732,7 @@ function TabHistorial({y}) {
   );
 }
 
+// ─── TAB METAS ────────────────────────────────────────────────────────────────
 function TabMetas({y}) {
   const t=now();
   const [vm,setVm]=useState(t.m);
@@ -634,28 +745,47 @@ function TabMetas({y}) {
     (async()=>{
       const goals=await SB.getAllGoals(y,vm);
       const inp={},off={};
-      BRANCHES.forEach(b=>{ const g=goals.find(g=>g.branch_id===b.id); inp[b.id]=g?.goal?String(g.goal):""; off[b.id]=g?.offset_amount?String(g.offset_amount):""; });
+      BRANCHES.forEach(b=>{
+        const g=goals.find(g=>g.branch_id===b.id);
+        inp[b.id]=g?.goal?String(g.goal):"";
+        off[b.id]=g?.offset_amount?String(g.offset_amount):"";
+      });
       setInputs(inp); setOffsets(off);
     })();
   },[y,vm]);
 
   const save=async()=>{
     setSaving(true);
-    await Promise.all(BRANCHES.map(b=>{ const goal=parseFloat(inputs[b.id])||0; const offset=parseFloat(offsets[b.id])||0; if(goal>0) return SB.upsertGoal(b.id,y,vm,goal,offset); }).filter(Boolean));
+    await Promise.all(BRANCHES.map(b=>{
+      const goal=parseFloat(inputs[b.id])||0;
+      const offset=parseFloat(offsets[b.id])||0;
+      if (goal>0) return SB.upsertGoal(b.id,y,vm,goal,offset);
+    }).filter(Boolean));
     setSaving(false); setSaved(true); setTimeout(()=>setSaved(false),2200);
   };
 
-  const isCurrent=vm===t.m&&y===t.y, prevDay=t.day-1;
+  const isCurrent=vm===t.m&&y===t.y;
+  const prevDay=t.day-1;
+
   return (
     <div>
       <div style={{marginBottom:20}}>
         <div style={{color:"#aaa",fontSize:11,marginBottom:10}}>Mes</div>
         <div style={{display:"flex",flexWrap:"wrap",gap:6}}>
-          {MES.map((mo,i)=>(<button key={i} onClick={()=>setVm(i)} style={{padding:"6px 13px",borderRadius:8,border:"1px solid",borderColor:i===vm?"#111":"#e5e5e5",background:i===vm?"#111":"#fff",color:i===vm?"#fff":"#777",fontSize:12,cursor:"pointer",fontWeight:i===vm?600:400}}>{mo.slice(0,3)}</button>))}
+          {MES.map((mo,i)=>(
+            <button key={i} onClick={()=>setVm(i)}
+              style={{padding:"6px 13px",borderRadius:8,border:"1px solid",borderColor:i===vm?"#111":"#e5e5e5",background:i===vm?"#111":"#fff",color:i===vm?"#fff":"#777",fontSize:12,cursor:"pointer",fontWeight:i===vm?600:400}}>
+              {mo.slice(0,3)}
+            </button>
+          ))}
         </div>
       </div>
       <div style={{fontWeight:700,fontSize:14,color:"#222",marginBottom:12}}>Metas — {MES[vm]} {y}</div>
-      {isCurrent&&prevDay>0&&(<div style={{background:"#FFFBEB",border:"1px solid #FDE68A",borderRadius:10,padding:"10px 14px",marginBottom:16,fontSize:12,color:"#92400E",lineHeight:1.5}}>💡 Captura lo vendido del 1 al {prevDay} de {MES[vm]} según Microsip en la columna amarilla.</div>)}
+      {isCurrent&&prevDay>0&&(
+        <div style={{background:"#FFFBEB",border:"1px solid #FDE68A",borderRadius:10,padding:"10px 14px",marginBottom:16,fontSize:12,color:"#92400E",lineHeight:1.5}}>
+          💡 Captura lo vendido del 1 al {prevDay} de {MES[vm]} según Microsip en la columna amarilla.
+        </div>
+      )}
       <div style={{display:"grid",gap:10,marginBottom:20}}>
         {BRANCHES.map(b=>(
           <div key={b.id} style={{background:"#fafafa",borderRadius:12,padding:"14px",border:"1px solid #f0f0f0"}}>
@@ -667,21 +797,33 @@ function TabMetas({y}) {
             <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:10}}>
               <div>
                 <div style={{fontSize:10,color:"#bbb",letterSpacing:1,textTransform:"uppercase",marginBottom:6}}>Meta mensual</div>
-                <input type="number" value={inputs[b.id]||""} onChange={e=>setInputs(p=>({...p,[b.id]:e.target.value}))} placeholder="$0" style={{width:"100%",background:"#fff",border:"1px solid #e5e5e5",borderRadius:9,padding:"9px 10px",fontSize:14,textAlign:"right",color:"#111",outline:"none",boxSizing:"border-box"}}/>
+                <input type="number" value={inputs[b.id]||""} onChange={e=>setInputs(p=>({...p,[b.id]:e.target.value}))}
+                  placeholder="$0"
+                  style={{width:"100%",background:"#fff",border:"1px solid #e5e5e5",borderRadius:9,padding:"9px 10px",fontSize:14,textAlign:"right",color:"#111",outline:"none",boxSizing:"border-box"}}
+                />
               </div>
               <div>
-                <div style={{fontSize:10,color:isCurrent?"#F59E0B":"#bbb",letterSpacing:1,textTransform:"uppercase",marginBottom:6}}>{isCurrent&&prevDay>0?`Vendido 1–${prevDay}`:"Acumulado"}</div>
-                <input type="number" value={offsets[b.id]||""} onChange={e=>setOffsets(p=>({...p,[b.id]:e.target.value}))} placeholder="$0" style={{width:"100%",background:"#fff",border:`1px solid ${isCurrent?"#FDE68A":"#e5e5e5"}`,borderRadius:9,padding:"9px 10px",fontSize:14,textAlign:"right",color:"#111",outline:"none",boxSizing:"border-box"}}/>
+                <div style={{fontSize:10,color:isCurrent?"#F59E0B":"#bbb",letterSpacing:1,textTransform:"uppercase",marginBottom:6}}>
+                  {isCurrent&&prevDay>0?`Vendido 1–${prevDay}`:"Acumulado"}
+                </div>
+                <input type="number" value={offsets[b.id]||""} onChange={e=>setOffsets(p=>({...p,[b.id]:e.target.value}))}
+                  placeholder="$0"
+                  style={{width:"100%",background:"#fff",border:`1px solid ${isCurrent?"#FDE68A":"#e5e5e5"}`,borderRadius:9,padding:"9px 10px",fontSize:14,textAlign:"right",color:"#111",outline:"none",boxSizing:"border-box"}}
+                />
               </div>
             </div>
           </div>
         ))}
       </div>
-      <button onClick={save} style={{width:"100%",background:saved?"#10B981":"#111",border:"none",borderRadius:12,color:"#fff",fontSize:14,fontWeight:700,padding:"15px",cursor:"pointer",transition:"background .3s"}}>{saving?"Guardando...":saved?"✓ Guardado":"Guardar metas"}</button>
+      <button onClick={save}
+        style={{width:"100%",background:saved?"#10B981":"#111",border:"none",borderRadius:12,color:"#fff",fontSize:14,fontWeight:700,padding:"15px",cursor:"pointer",transition:"background .3s"}}>
+        {saving?"Guardando...":saved?"✓ Guardado":"Guardar metas"}
+      </button>
     </div>
   );
 }
 
+// ─── MANAGER ──────────────────────────────────────────────────────────────────
 function Manager({onBack}) {
   const t=now();
   const [tab,setTab]=useState("hoy");
@@ -696,17 +838,29 @@ function Manager({onBack}) {
     setLoading(true);
     const dayNum=vm===t.m&&vy===t.y?t.day:daysInM(vy,vm);
     const [allTxns,allGoals]=await Promise.all([SB.getAllTxns(vy,vm),SB.getAllGoals(vy,vm)]);
-    const tbb={},st={};
-    BRANCHES.forEach(b=>{tbb[b.id]=[];});
-    allTxns.forEach(t=>{if(tbb[t.branch_id])tbb[t.branch_id].push(t);});
+    const tbb={}, st={};
+    BRANCHES.forEach(b=>{ tbb[b.id]=[]; });
+    allTxns.forEach(t=>{ if(tbb[t.branch_id]) tbb[t.branch_id].push(t); });
     const goalMap={};
-    allGoals.forEach(g=>{goalMap[g.branch_id]=g;});
-    BRANCHES.forEach(b=>{const g=goalMap[b.id]; st[b.id]=computeStats(tbb[b.id],amt(g?.goal)||0,dayNum,vy,vm,amt(g?.offset_amount)||0);});
+    allGoals.forEach(g=>{ goalMap[g.branch_id]=g; });
+    BRANCHES.forEach(b=>{
+      const g=goalMap[b.id];
+      st[b.id]=computeStats(tbb[b.id],amt(g?.goal)||0,dayNum,vy,vm,amt(g?.offset_amount)||0);
+    });
     setTxnsByBranch(tbb); setStats(st); setLoading(false);
   },[vm,vy]);
 
-  useEffect(()=>{ if(tab!=="historial"&&tab!=="metas")loadAll(); else setLoading(false); },[loadAll,tab]);
-  useEffect(()=>{ if(tab==="historial"||tab==="metas")return; const iv=setInterval(loadAll,30000); return()=>clearInterval(iv); },[loadAll,tab]);
+  useEffect(()=>{
+    if (tab!=="historial"&&tab!=="metas") loadAll();
+    else setLoading(false);
+  },[loadAll,tab]);
+
+  // Auto-refresh every 30s in manager
+  useEffect(()=>{
+    if (tab==="historial"||tab==="metas") return;
+    const iv=setInterval(loadAll,30000);
+    return ()=>clearInterval(iv);
+  },[loadAll,tab]);
 
   const TABS=[{id:"hoy",label:"Hoy"},{id:"mes",label:"Mes"},{id:"semana",label:"Semana"},{id:"historial",label:"Historial"},{id:"metas",label:"Metas"}];
   const viewDay=vm===t.m&&vy===t.y?t.day:daysInM(vy,vm);
@@ -723,7 +877,12 @@ function Manager({onBack}) {
         <button onClick={loadAll} style={{background:"none",border:"none",color:"#aaa",cursor:"pointer",fontSize:18}}>↻</button>
       </div>
       <div style={{display:"flex",gap:4,padding:"10px 14px",borderBottom:"1px solid #f5f5f5",overflowX:"auto"}}>
-        {TABS.map(tb=>(<button key={tb.id} onClick={()=>setTab(tb.id)} style={{padding:"8px 16px",borderRadius:9,border:"none",background:tab===tb.id?"#111":"transparent",color:tab===tb.id?"#fff":"#aaa",fontWeight:tab===tb.id?700:400,fontSize:13,cursor:"pointer",whiteSpace:"nowrap"}}>{tb.label}</button>))}
+        {TABS.map(tb=>(
+          <button key={tb.id} onClick={()=>setTab(tb.id)}
+            style={{padding:"8px 16px",borderRadius:9,border:"none",background:tab===tb.id?"#111":"transparent",color:tab===tb.id?"#fff":"#aaa",fontWeight:tab===tb.id?700:400,fontSize:13,cursor:"pointer",whiteSpace:"nowrap",transition:"all .15s"}}>
+            {tb.label}
+          </button>
+        ))}
       </div>
       {showNav&&(
         <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",padding:"10px 18px",borderBottom:"1px solid #f8f8f8"}}>
@@ -735,11 +894,11 @@ function Manager({onBack}) {
       <div style={{padding:"16px 16px 80px"}}>
         {loading?<div style={{textAlign:"center",padding:60,color:"#ccc",fontSize:13}}>Cargando...</div>:(
           <>
-            {tab==="hoy"&&<TabHoy stats={stats} txnsByBranch={txnsByBranch} y={vy} m={vm} day={viewDay} onRefresh={loadAll}/>}
-            {tab==="mes"&&<TabMes stats={stats} y={vy} m={vm}/>}
-            {tab==="semana"&&<TabSemana txnsByBranch={txnsByBranch} stats={stats} y={vy} m={vm}/>}
-            {tab==="historial"&&<TabHistorial y={vy}/>}
-            {tab==="metas"&&<TabMetas y={vy}/>}
+            {tab==="hoy"       &&<TabHoy      stats={stats} txnsByBranch={txnsByBranch} y={vy} m={vm} day={viewDay} onRefresh={loadAll}/>}
+            {tab==="mes"       &&<TabMes      stats={stats} y={vy} m={vm}/>}
+            {tab==="semana"    &&<TabSemana   txnsByBranch={txnsByBranch} stats={stats} y={vy} m={vm}/>}
+            {tab==="historial" &&<TabHistorial y={vy}/>}
+            {tab==="metas"     &&<TabMetas    y={vy}/>}
           </>
         )}
       </div>
@@ -747,16 +906,19 @@ function Manager({onBack}) {
   );
 }
 
+// ─── PIN ──────────────────────────────────────────────────────────────────────
 function PinModal({onSuccess,onCancel}) {
   const [pin,setPin]=useState(""), [error,setError]=useState("");
   const submit=()=>{if(pin===PIN)onSuccess();else{setError("PIN incorrecto.");setPin("");}};
   return (
     <div style={{position:"fixed",inset:0,background:"rgba(0,0,0,.55)",display:"flex",alignItems:"center",justifyContent:"center",zIndex:100}}>
-      <div style={{background:"#fff",borderRadius:20,padding:"30px 26px",width:310,boxShadow:"0 24px 64px rgba(0,0,0,.2)"}}>
+      <div style={{background:"#fff",borderRadius:20,padding:"30px 26px",width:310,boxShadow:"0 24px 64px rgba(0,0,0,.2)",fontFamily:"Inter,sans-serif"}}>
         <div style={{fontWeight:800,fontSize:18,color:"#111",marginBottom:5}}>Acceso Gerente</div>
         <div style={{color:"#aaa",fontSize:13,marginBottom:22}}>Ingresa tu PIN de acceso</div>
-        <input type="password" value={pin} autoFocus onChange={e=>{setPin(e.target.value);setError("");}} onKeyDown={e=>e.key==="Enter"&&submit()} placeholder="••••••••••"
-          style={{width:"100%",border:`1.5px solid ${error?"#EF4444":"#e5e5e5"}`,borderRadius:12,padding:"13px 15px",fontSize:16,outline:"none",marginBottom:error?8:16,boxSizing:"border-box",letterSpacing:2}}/>
+        <input type="password" value={pin} autoFocus onChange={e=>{setPin(e.target.value);setError("");}}
+          onKeyDown={e=>e.key==="Enter"&&submit()} placeholder="••••••••••"
+          style={{width:"100%",border:`1.5px solid ${error?"#EF4444":"#e5e5e5"}`,borderRadius:12,padding:"13px 15px",fontSize:16,outline:"none",marginBottom:error?8:16,boxSizing:"border-box",letterSpacing:2}}
+        />
         {error&&<div style={{color:"#EF4444",fontSize:12,marginBottom:14}}>{error}</div>}
         <div style={{display:"flex",gap:10}}>
           <button onClick={onCancel} style={{flex:1,background:"#f5f5f5",border:"none",borderRadius:11,padding:"13px",cursor:"pointer",color:"#666",fontSize:14}}>Cancelar</button>
@@ -767,18 +929,28 @@ function PinModal({onSuccess,onCancel}) {
   );
 }
 
+// ─── APP ──────────────────────────────────────────────────────────────────────
 export default function App() {
   const [view,setView]=useState("landing");
   const [branch,setBranch]=useState(null);
   const [showPin,setShowPin]=useState(false);
 
+  // Sync loop — intenta cada 20s vaciar la cola offline
   useEffect(()=>{
-    const iv=setInterval(async()=>{ if(_q.length>0) await qFlush(); },20000);
+    const iv=setInterval(async()=>{
+      if (_q.length>0) await qFlush();
+    },20000);
     return ()=>clearInterval(iv);
   },[]);
 
+  // Warn before closing with pending transactions
   useEffect(()=>{
-    const handler=(e)=>{ if(_q.length>0){e.preventDefault();e.returnValue=`Hay ${_q.length} venta(s) pendiente(s) de sincronizar.`;} };
+    const handler=(e)=>{
+      if (_q.length>0){
+        e.preventDefault();
+        e.returnValue=`Hay ${_q.length} venta(s) pendiente(s) de sincronizar. Espera unos segundos antes de cerrar.`;
+      }
+    };
     window.addEventListener("beforeunload",handler);
     return ()=>window.removeEventListener("beforeunload",handler);
   },[]);
